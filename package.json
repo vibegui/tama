@@ -26,7 +26,8 @@
 		"check": "tsc --noEmit",
 		"test": "bun test",
 		"fmt": "biome format --write .",
-		"lint": "biome lint --write ."
+		"lint": "biome lint --write .",
+		"room": "bun scripts/room.ts"
 	},
 	"dependencies": {
 		"@base-ui/react": "^1.2.0",
