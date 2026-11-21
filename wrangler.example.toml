@@ -11,6 +11,9 @@ compatibility_flags = ["nodejs_compat"]
 [vars]
 AI_GATEWAY_ACCOUNT_ID = "55dd6d847f366735ef6e0f860c7bdc51"
 AI_GATEWAY_NAME = "default"
+# deco chat (chat.decocms.com): emails allowed in through its identity seal.
+# Comma-separated. Unset = off. Works with or without MCP_BEARER_TOKEN.
+# VIBEBOOK_OWNERS = "you@example.com"
 
 [[d1_databases]]
 binding = "DB"

@@ -1,6 +1,7 @@
 import { createPublicPrompt } from "@decocms/runtime/tools";
 import { z } from "zod";
 import type { Env } from "../env.ts";
+import { repoPrompts } from "./skills.gen.ts";
 
 const careGuide = (_env: Env) =>
 	createPublicPrompt({
@@ -53,4 +54,28 @@ Don't ever call tools with missing arguments. If you need an id, call a list too
 		}),
 	});
 
-export const prompts = [careGuide];
+// skills/<name>/SKILL.md and prompts/<name>.md, bundled by scripts/gen-skills.ts.
+const fromRepo = repoPrompts.map(
+	(p) => (_env: Env) =>
+		createPublicPrompt({
+			name: p.name,
+			title: p.title,
+			description: p.description,
+			argsSchema: {
+				context: z.string().optional().describe("Anything extra for this run"),
+			},
+			execute: async ({ args }) => ({
+				messages: [
+					{
+						role: "user" as const,
+						content: {
+							type: "text" as const,
+							text: args.context ? `${p.body}\n\n${args.context}` : p.body,
+						},
+					},
+				],
+			}),
+		}),
+);
+
+export const prompts = [careGuide, ...fromRepo];

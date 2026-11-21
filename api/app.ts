@@ -6,6 +6,7 @@ import { getFile, readFileBytes } from "./storage/files.ts";
 import { PET_SELF_ID } from "./storage/pet-self.ts";
 import { upsertPushSubscription } from "./storage/push-subscriptions.ts";
 import { tools } from "./tools/index.ts";
+import { vibebookOwner } from "./vibebook-identity.ts";
 
 // biome-ignore lint/suspicious/noExplicitAny: runtime.fetch signature compatibility
 type Fetcher = (req: Request, ...args: any[]) => Response | Promise<Response>;
@@ -25,6 +26,53 @@ function jsonResponse(body: unknown, status = 200): Response {
 			"cache-control": "no-store",
 		},
 	});
+}
+
+// Constant-time-ish string compare so a wrong token can't be probed byte by
+// byte via timing. Length leak is acceptable for an opaque random token.
+function safeEqual(a: string, b: string): boolean {
+	if (a.length !== b.length) return false;
+	let diff = 0;
+	for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+	return diff === 0;
+}
+
+// Bearer-auth gate for the MCP endpoint. Returns a 401 Response when the
+// request should be rejected, or null to let it through.
+//   - Token UNSET (local dev / unconfigured fork): MCP stays open → null.
+//   - Token SET: require `Authorization: Bearer <token>`. Studio sends this
+//     via the connection's configured header; the standalone web UI sends a
+//     token it has stored. Mismatch/missing → 401.
+export function mcpAuthRejection(
+	req: Request,
+	env: Env | undefined,
+): Response | null {
+	const expected = env?.MCP_BEARER_TOKEN?.trim();
+	// Open only when NO auth is configured (local dev, unconfigured fork).
+	// With only VIBEBOOK_OWNERS set, bearer is rejected and the seal decides.
+	if (!expected && !env?.VIBEBOOK_OWNERS?.trim()) return null;
+	const header = req.headers.get("authorization") ?? "";
+	const m = /^Bearer\s+(.+)$/i.exec(header.trim());
+	const presented = m?.[1]?.trim();
+	if (expected && presented && safeEqual(presented, expected)) return null;
+	return new Response(
+		JSON.stringify({
+			jsonrpc: "2.0",
+			id: null,
+			error: {
+				code: -32001,
+				message: "Unauthorized: missing or invalid bearer token",
+			},
+		}),
+		{
+			status: 401,
+			headers: {
+				"content-type": "application/json",
+				"www-authenticate": 'Bearer realm="tama-mcp"',
+				"cache-control": "no-store",
+			},
+		},
+	);
 }
 
 // Serve an uploaded file (prescription image, PDF, etc.) by fileId. Used by
@@ -95,8 +143,12 @@ function withAssetsAndMcpRoutes(fetcher: Fetcher): Fetcher {
 			}
 		}
 
-		// MCP API at /api/mcp → rewrite to /mcp for the runtime
+		// MCP API at /api/mcp → rewrite to /mcp for the runtime, gated by an
+		// optional bearer token (see mcpAuthRejection).
 		if (url.pathname === "/api/mcp" || url.pathname.startsWith("/api/mcp/")) {
+			const rejected = mcpAuthRejection(req, env);
+			if (rejected && !(await vibebookOwner(req, env?.VIBEBOOK_OWNERS)))
+				return rejected;
 			url.pathname = url.pathname.slice(4);
 			const rewritten = new Request(url.toString(), req);
 			return fetcher(rewritten, ...args);

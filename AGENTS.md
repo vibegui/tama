@@ -101,7 +101,19 @@ The human's Cloudflare account needs:
 - Cloudflare AI Gateway — already configured in `wrangler.toml`'s vars,
   but the human may want their own gateway slug.
 
-Then:
+Fastest path, one command (creates D1 + R2, writes wrangler.toml, generates
+VAPID keys, stores secrets, migrates, builds and deploys):
+
+```bash
+bun install
+bunx wrangler login
+ANTHROPIC_API_KEY=... bun run setup -- --owner you@example.com
+```
+
+`--dry-run` shows every step without touching the account. The output prints
+the MCP URL to connect in deco chat (chat.decocms.com); only `--owner` gets in.
+
+Or by hand:
 
 ```bash
 bun install
