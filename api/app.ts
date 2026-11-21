@@ -6,6 +6,7 @@ import { getFile, readFileBytes } from "./storage/files.ts";
 import { PET_SELF_ID } from "./storage/pet-self.ts";
 import { upsertPushSubscription } from "./storage/push-subscriptions.ts";
 import { tools } from "./tools/index.ts";
+import { vibebookOwner } from "./vibebook-identity.ts";
 
 // biome-ignore lint/suspicious/noExplicitAny: runtime.fetch signature compatibility
 type Fetcher = (req: Request, ...args: any[]) => Response | Promise<Response>;
@@ -42,18 +43,26 @@ function safeEqual(a: string, b: string): boolean {
 //   - Token SET: require `Authorization: Bearer <token>`. Studio sends this
 //     via the connection's configured header; the standalone web UI sends a
 //     token it has stored. Mismatch/missing → 401.
-function mcpAuthRejection(req: Request, env: Env | undefined): Response | null {
+export function mcpAuthRejection(
+	req: Request,
+	env: Env | undefined,
+): Response | null {
 	const expected = env?.MCP_BEARER_TOKEN?.trim();
-	if (!expected) return null; // auth disabled
+	// Open only when NO auth is configured (local dev, unconfigured fork).
+	// With only VIBEBOOK_OWNERS set, bearer is rejected and the seal decides.
+	if (!expected && !env?.VIBEBOOK_OWNERS?.trim()) return null;
 	const header = req.headers.get("authorization") ?? "";
 	const m = /^Bearer\s+(.+)$/i.exec(header.trim());
 	const presented = m?.[1]?.trim();
-	if (presented && safeEqual(presented, expected)) return null;
+	if (expected && presented && safeEqual(presented, expected)) return null;
 	return new Response(
 		JSON.stringify({
 			jsonrpc: "2.0",
 			id: null,
-			error: { code: -32001, message: "Unauthorized: missing or invalid bearer token" },
+			error: {
+				code: -32001,
+				message: "Unauthorized: missing or invalid bearer token",
+			},
 		}),
 		{
 			status: 401,
@@ -138,7 +147,8 @@ function withAssetsAndMcpRoutes(fetcher: Fetcher): Fetcher {
 		// optional bearer token (see mcpAuthRejection).
 		if (url.pathname === "/api/mcp" || url.pathname.startsWith("/api/mcp/")) {
 			const rejected = mcpAuthRejection(req, env);
-			if (rejected) return rejected;
+			if (rejected && !(await vibebookOwner(req, env?.VIBEBOOK_OWNERS)))
+				return rejected;
 			url.pathname = url.pathname.slice(4);
 			const rewritten = new Request(url.toString(), req);
 			return fetcher(rewritten, ...args);

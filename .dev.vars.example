@@ -20,3 +20,7 @@ CF_AI_GATEWAY_TOKEN=
 # the same token in the MCP connection's auth header. To use the standalone web
 # app, open it once with ?token=<token> (it's saved to localStorage).
 # MCP_BEARER_TOKEN=
+
+# deco chat (chat.decocms.com) sends a signed identity seal on every MCP call.
+# List the owner emails in VIBEBOOK_OWNERS ([vars] in wrangler.toml) and those
+# people get in without any token. Bearer and seal can be on at the same time.

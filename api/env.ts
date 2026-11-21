@@ -24,6 +24,10 @@ export interface Bindings {
 	// header; the standalone web UI sends it from a stored token). When unset
 	// (local dev, unconfigured forks) the MCP stays open. See api/app.ts.
 	MCP_BEARER_TOKEN?: string;
+	// Comma-separated emails allowed in through the deco chat identity seal
+	// (X-Vibebook-Identity), next to the bearer token. Unset → off. See
+	// api/vibebook-identity.ts.
+	VIBEBOOK_OWNERS?: string;
 	// Web Push / VAPID. Public key is also surfaced to the frontend via the
 	// push_vapid_public_key tool (VAPID public keys are inherently public).
 	// Generate with `npx web-push generate-vapid-keys` once per environment.
